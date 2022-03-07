@@ -1,0 +1,384 @@
+---
+title: 'Operadoras de cartão de crédito suspendem atividades na Rússia'
+subtile: "Repercussão no Twitter"
+author: "Tadeu G. Teixeira"
+date: "07/03/2022"
+output: html_document
+---
+
+# Qual o contexto da decisão?
+
+As operadoras de cartão de crédito Visa e Mastercard, assim como inúmeras empresas, suspenderam suas atividades na Rússia no dia 05 de março como parte das ações contra a invasão da Ucrânia.
+
+As decisões empresariais foram rapidamente compartilhadas nas mídias sociais entre jornalistas, usuários e *stakeholders*.
+
+Como a ação foi comentada no Twitter? Os sentimentos associados foram positivos ou negativos? É isso que vamos verificar.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, eval = TRUE, message = FALSE)
+```
+
+ 
+
+## Repercussão no Twitter da decisão das operadoras de cartão de crédito
+
+ 
+
+Coletei 1856 tweets pulicados com a \#mastercard e 2000 com a \#visa, totalizando 3856 tweets sobre o tema.
+
+ 
+
+```{r}
+# Pacotes 
+
+# Carregar pacote rtweet para acesso aos dados no Twitter
+library(rtweet)
+# Bibliotecas para manipular dados e criar gráficos
+library(ggplot2)
+library(dplyr)
+# Biblioteca para textmine
+library(tidytext)
+# Pacote para criar grafos
+library(igraph)
+library(ggraph)
+# Pacote para manipular datas
+library(lubridate)
+
+load("mastercard_files.RData")
+
+```
+
+```{r}
+visa %>%
+  ts_plot("1 hours") +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(plot.title = ggplot2::element_text(face = "bold")) +
+  ggplot2::labs(
+    x = NULL, y = NULL,
+    title = "Frequência de '#visa' no Twitter",
+    subtitle = "Aumento das postagens a partir da suspensão das atividades na Rússia",
+    caption = "\nSource: Data collected from Twitter's REST API via rtweet"
+  )
+
+```
+
+ 
+
+Verifica-se claramente no gráfico o aumento das publicações e conversas relacionadas às operadoras de cartão de crédito após a decisão das empresas, com um pico de postagens imediatamente após a decisão.
+
+ 
+
+```{r}
+master %>%
+  ts_plot("1 hours") +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(plot.title = ggplot2::element_text(face = "bold")) +
+  ggplot2::labs(
+    x = NULL, y = NULL,
+    title = "Frequência de '#mastercard' no Twitter",
+    subtitle = "Aumento das postagens a partir da suspensão das atividades na Rússia",
+    caption = "\nFonte: Dados Coletados da Twitter's REST API via rtweet"
+  )
+
+```
+
+ 
+
+Pode-se verificar, na figura que compara as postagens das empresas, que o comportamento foi o mesmo: aumento das discussões sobre as marcas no Twitter.
+
+ 
+
+```{r}
+# Juntar bases para analise
+
+base_unica <- bind_rows(visa %>% 
+                        mutate(empresa = "visa"), 
+                        master %>% 
+                        mutate(empresa = "master"))
+
+
+#### Agora série temporal com dados das duas operadoras. 
+
+base_unica %>%
+  dplyr::group_by(`empresa`) %>%
+  ts_plot("3 hours", trim = 1L)+
+  ggplot2::theme_minimal()+
+  ggplot2::theme(
+    plot.title = ggplot2::element_text(face = "bold")) +
+  ggplot2::labs(x = "Dias", y = "Frequência", title = "Frequência de Tweets associados às operadoras #mastercard e #visa",
+    subtitle = "Variação temporal organizada por dias",
+    colour = "Empresa", caption = "\nFonte: Dados coletados pela API do Twitter via rtweet")
+
+
+```
+
+ 
+
+### Quais foram as palavras mais usadas nas postagens?
+
+ 
+
+```{r}
+#Vamos agora verificar a frequencia de palavras nos tweets
+
+library(tidytext)
+library(stringr)
+
+remove_reg <- "&amp;|&lt;|&gt;"
+
+base_limpa <- base_unica %>% 
+  filter(!str_detect(text, "^RT")) %>%
+  mutate(text = str_remove_all(text, remove_reg)) %>%
+  unnest_tokens(word, text, token = "tweets") %>%
+  filter(!word %in% stop_words$word,
+         !word %in% str_remove_all(stop_words$word, "'"),
+         str_detect(word, "[a-z]"))
+
+frequencia <- base_limpa %>% 
+  group_by(empresa) %>% 
+  count(word, sort = TRUE) %>% 
+  left_join(base_limpa %>% 
+              group_by(empresa) %>% 
+              summarise(total = n())) %>%
+  mutate(freq = n/total)
+
+
+
+#remodelar os dados
+library(tidyr)
+
+frequencia_tidy <- frequencia %>% 
+  select(empresa, word, freq) %>% 
+  spread(empresa, freq) %>%
+  arrange(visa, master)
+
+
+library(scales)
+
+ggplot(frequencia_tidy, aes(visa, master)) +
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.25, height = 0.25) +
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  geom_abline(color = "blue")+
+  theme_bw()+
+  ggplot2::labs(x = "Visa", y = "Mastercard", title = "Frequência de Tweets associados às operadoras #mastercard e #visa",
+                subtitle = "Comparação de uso de palavras em cada hashtag",
+                caption = "\nFonte: Dados coletados pela API do Twitter via rtweet")
+
+```
+
+ 
+
+## Mastercard: quais os destaques?
+
+ 
+
+> ❗️\#Mastercard has blocked a number of financial institutions' access to the payment network as a result of sanctions orders against \#Russia (\@nexta_tv, Tweet com 3279 likes e 447 retweets até a coleta dos dados)\
+
+Não é nenhuma surpresa, dado o contexto, que os termos mais frequentes associados à Mastercard sejam os respectivos nomes das empresas e associações aos países em conflito, além das implicações relacionadas aos sistemas de pagamento.
+
+```{r}
+
+# Voltar a usar os dados de cada operadora. Vamos fazer apenas com uma.
+library(tidytext)
+
+# remove elementos e limpa 
+master$stripped_text <- gsub("http.*","",  master$text)
+
+master$stripped_text <- gsub("https.*","", master$stripped_text)
+
+master_clean <- master %>%
+  dplyr::select(stripped_text) %>%
+  unnest_tokens(word, stripped_text)
+
+# Limpar stopwords
+master_clean <- master_clean %>%
+  anti_join(get_stopwords(language = "en"))
+
+#Plota palavras únicas
+
+master_clean %>%
+  count(word, sort = TRUE) %>%
+  top_n(15) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(x = word, y = n)) +
+  geom_col() +
+  xlab(NULL) +
+  coord_flip() +
+  labs(y = "Frequência",
+       x = "Palavras únicas",
+       title = "Contagem de palavras únicas tuitadas sobre #mastercard",
+       subtitle = "As palavras se relacionam diretamente ao confito bélico")+
+  theme_bw()
+
+```
+
+ 
+
+Quando o foco são os bigramas, a frequência associada de palavras indica um movimento interesse: formam-se segumentos de discussão relacionados aos sistemas de pagamento, indicações que Rússia teria errado em seus cálculos e comitido "suicídio", considerando todo o contexto das sanções internacionais, e também a presença das criptomoedas nas discussões. Apesar de meios de pagamento diversos, há uma tendência de massificação - pelo menos no Twitter - sobre o papel das criptomoedas (que poderiam ser uma alternativa à Russia, mas com indicações no contexto de também serem acionadas como parte das sanções econômicas).
+
+```{r}
+
+# Verificar par de palavras 
+
+master_pair <- master %>%
+  dplyr::select(stripped_text) %>%
+  unnest_tokens(paired_words, stripped_text, token = "ngrams", n = 2)
+
+#carregar pacote
+library(tidyr)
+
+master_separar_palavras <- master_pair %>%
+  separate(paired_words, c("word1", "word2"), sep = " ")
+
+master_filtro <- master_separar_palavras %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+
+# Nova contagem de bigramns 
+master_freq <- master_filtro %>%
+  count(word1, word2, sort = TRUE)
+
+
+library(igraph)
+library(ggraph)
+
+# Plotagem 
+master_freq %>%
+  filter(n >= 20) %>%
+  graph_from_data_frame() %>%
+  ggraph(layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n, edge_width = n))+
+  #geom_edge_link(aes(edge_alpha = n, edge_width = n)) +
+  geom_node_point(color = "darkslategray4", size = 3) +
+  geom_node_text(aes(label = name), vjust = 1.8, size = 3) +
+  labs(title = "Pares de palavras associadas à Mastercard no contexto bélico",
+       subtitle = "Indica a frequência de uso associado das palavras",
+       x = "", y = "", colour = "Freq")+
+  theme_bw()
+```
+
+ 
+
+### Uso de hashtags
+
+ 
+
+As hashtags usadas em conjunto com \#mastercard e \#visa apenas endossam o contexto da guerra, não havendo propriamente uma novidade.
+
+```{r}
+library(knitr)
+
+kable(master %>% 
+  unnest_tokens(hashtag, text, "tweets", to_lower = FALSE) %>%
+  filter(str_detect(hashtag, "^#"),
+         hashtag != "#ClimateEmergency") %>%
+  count(hashtag, sort = TRUE) %>%
+  top_n(10), caption = "10 hashtags mais frequentes",
+   col.names = c('Hashtags', 'Frequencia'), "simple"
+)
+
+```
+
+## Nuvem de palavras
+
+A nuvem de palavras abaixo sintetiza bem os termos mais frequentes utilizados com a \#mastercard. Fica evidente como o assunto repercutiu na rede social destacando um sentimento nos comentários contra a Rússia.
+
+ 
+
+```{r}
+
+## Vamos criar uma nuvem de palavras
+
+words <- master %>%
+  mutate(text = str_remove_all(text, "&amp;|&lt;|&gt;"),
+         text = str_remove_all(text, "\\s?(f|ht)(tp)(s?)(://)([^\\.]*)[\\.|/](\\S*)"),
+         text = str_remove_all(text, "[^\x01-\x7F]")) %>% 
+  unnest_tokens(word, text, token = "tweets") %>%
+  filter(!word %in% stop_words$word,
+         !word %in% str_remove_all(stop_words$word, "'"),
+         str_detect(word, "[a-z]"),
+         !str_detect(word, "^#"),         
+         !str_detect(word, "@\\S+")) %>%
+  count(word, sort = TRUE)
+
+library(wordcloud2)
+
+wordcloud2(words, color='random-dark')
+```
+
+   
+
+## Análise de sentimentos
+
+A análise de sentimentos permite mapear como as postagens repercutiram a decisão empresarial: foi positivo? Foi negativo?
+
+Na figura, observa-se claramente os polos dos sentimentos positivos e negativos.
+
+No polo positivo, os comentários são favoráveis à decisão da empresa e apresenta em destaque palavras sobre suporte à Ucrânia, solidariedade e apoio à decisão de suspensão das operações.
+
+No polo negativo, os sentimentos são condenação à Rússia e ao Putin em várias frentes, inclusive com um tom de torcida contra as ações bélicas presente em palavras como lose, killer, suicide.
+
+```{r}
+library(reshape2)
+library(wordcloud)
+
+senti_words %>%
+  inner_join(get_sentiments("bing")) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("#E8451A", "#076147"),
+                   max.words = 500, scale=c(5,.4), 
+                   title.colors=c("red","#076147"))
+```
+
+Ao analisar as palavras mais frequentes que contribuíram para a formação desses sentimentos, nota-se claramente o suporte da maioria dos usuários à decisão da Mastercard.
+
+ 
+
+```{r}
+
+
+### Analise de sentimento 
+
+senti_words <- words %>%
+  inner_join(get_sentiments("bing")) %>%
+  ungroup()
+
+
+senti_words %>%
+  group_by(sentiment) %>%
+  slice_max(n, n = 10) %>% 
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word, fill = sentiment)) +
+  theme_bw()+
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(x = "Palavras positivas e negativas presentes nos tweets",
+       y = NULL)
+
+```
+
+ 
+
+### Conclusão
+
+A decisão da Mastercard em suspender as operações na Rússia foi aprovada pela maioria dos usuários do Twitter da amostra de dados coletados.
+
+Referências
+
+Muitos dos códigos usados nesse exemplo de análise de dados textuais foram adaptados do já clássico livro *Text Mining with R*.
+
+[SILGE, Julia; ROBINSON, David. **Text mining with R**: A tidy approach."O'Reilly Media, Inc.", 2017.](https://www.tidytextmining.com/index.html)
+
+```{css}
+
+
+body {
+
+  text-align: justify;
+
+}
+
+```
